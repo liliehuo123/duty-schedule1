@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>值班排班表</title>
+    <style>
+        body { font-family: "微软雅黑", Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 20px auto;
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px #ccc;
+            padding: 30px 18mm 30px 18mm;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+        h1 { text-align: center; color: #333; }
+        .container, label, select, .month, .month-title, table, th, td, div, span { font-size: 20px !important; }
+        select { margin-bottom: 24px; padding: 4px 10px; }
+        .month { margin-bottom: 30px; }
+        .month-title { font-size: 28px !important; color: #1976d2; margin-bottom: 18px; text-align:center; }
+        table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 18px; }
+        th, td { border: 1px solid #888; padding: 0; text-align: center; min-width: 0; width: 1%; aspect-ratio: 1/1; height: 90px; vertical-align: middle; word-break: break-all; }
+        th { background: #e3f2fd; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        @media (max-width: 900px) {
+            .container { width: 100vw; min-height: 100vh; padding: 10px 2vw 10px 2vw; border-radius: 0; box-shadow: none; }
+            table, th, td { font-size: 13px !important; min-width: 0; height: 30px; }
+            .month-title { font-size: 18px !important; }
+        }
+        @media print {
+            body, html { background: #fff !important; }
+            .container { box-shadow: none; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>西南医科大学附属医院（康健院区）</h1>
+    <div style="margin-bottom:15px;">
+        <span style="display:inline-block;width:16px;height:16px;background:#e53935;vertical-align:middle;margin-right:4px;"></span><input id="name0" value="周杰" style="width:60px;font-size:18px;color:#e53935;font-weight:bold;text-align:center;"> 
+        <span style="display:inline-block;width:16px;height:16px;background:#fbc02d;vertical-align:middle;margin:0 8px 0 16px;"></span><input id="name1" value="郑杰" style="width:60px;font-size:18px;color:#fbc02d;font-weight:bold;text-align:center;"> 
+        <span style="display:inline-block;width:16px;height:16px;background:#1976d2;vertical-align:middle;margin:0 8px 0 16px;"></span><input id="name2" value="谭顺全" style="width:60px;font-size:18px;color:#1976d2;font-weight:bold;text-align:center;"> 
+        <span style="display:inline-block;width:16px;height:16px;background:#43a047;vertical-align:middle;margin:0 8px 0 16px;"></span><input id="name3" value="汪安锐" style="width:60px;font-size:18px;color:#43a047;font-weight:bold;text-align:center;"> 
+        <span style="display:inline-block;width:16px;height:16px;background:#e0f8e0;border:1px solid #b2dfdb;vertical-align:middle;margin:0 8px 0 16px;"></span>节假日
+        <span style="display:inline-block;width:16px;height:16px;background:#ffe0ef;border:1px solid #f8bbd0;vertical-align:middle;margin:0 8px 0 16px;"></span>周末
+    </div>
+    <label for="year">选择年份：</label>
+    <select id="year"></select>
+    <label for="month">选择月份：</label>
+    <select id="month"></select>
+    <div id="schedule"></div>
+</div>
+<script>
+    let names = [
+        document.getElementById('name0').value,
+        document.getElementById('name1').value,
+        document.getElementById('name2').value,
+        document.getElementById('name3').value
+    ];
+    const nameColors = ['#e53935', '#fbc02d', '#1976d2', '#43a047']; // 红、黄、蓝、绿
+
+    // 节假日列表（2025年，格式：'MM-DD'）
+    const holidays = [
+        '01-01', // 元旦
+        '01-28','01-29','01-30','01-31','02-01','02-02','02-03', // 春节
+        '04-04','04-05','04-06', // 清明节
+        '05-01','05-02','05-03','05-04','05-05', // 劳动节
+        '05-31','06-01','06-02', // 端午节
+        '09-30','10-01','10-02','10-03','10-04','10-05','10-06', // 国庆节
+        '10-06','10-07' // 国庆调休
+    ];
+
+    // 记录每一天的自定义名字，key为'YYYY-MM-DD'
+    let customNames = {};
+
+    // 中文月份数组
+    const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+
+    // 填充年份选择
+    const yearSelect = document.getElementById('year');
+    const nowYear = new Date().getFullYear();
+    for(let y = nowYear - 2; y <= nowYear + 2; y++) {
+        let opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y + '年';
+        if(y === nowYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+    }
+
+    // 填充月份选择
+    const monthSelect = document.getElementById('month');
+    for(let m = 1; m <= 12; m++) {
+        let opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m + '月';
+        if(m === (new Date().getMonth() + 1)) opt.selected = true;
+        monthSelect.appendChild(opt);
+    }
+
+    function getDaysInMonth(year, month) {
+        return new Date(year, month, 0).getDate();
+    }
+
+    // 计算指定起点（2025年5月1日郑杰）到当前月份1日的累计天数，确定当前月的起始顺序
+    function getStartIndex(year, month) {
+        // 起点：2025-05-01，郑杰（索引1）
+        let startYear = 2025, startMonth = 5, startIndex = 1;
+        let totalDays = 0;
+        if(year < startYear || (year === startYear && month < startMonth)) {
+            return 0;
+        }
+        // 计算从2025-05-01到year,month的1号之间的天数
+        let y = startYear, m = startMonth;
+        while(y < year || (y === year && m < month)) {
+            let days = getDaysInMonth(y, m);
+            totalDays += days;
+            m++;
+            if(m > 12) { m = 1; y++; }
+        }
+        return (startIndex + totalDays) % 4;
+    }
+
+    function generateSchedule(year, month) {
+        let html = '';
+        let startIndex = getStartIndex(year, month);
+        // 生成当月日历排班
+        let days = getDaysInMonth(year, month);
+        let firstDay = new Date(year, month - 1, 1).getDay();
+        firstDay = firstDay === 0 ? 7 : firstDay;
+        html += `<div class=\"month\"><div class=\"month-title\" style='color:#b71c1c;'>${monthNames[month-1]}</div>`;
+        html += '<table><tr>';
+        const weekDays = ['周一','周二','周三','周四','周五','周六','周日'];
+        for(let w=0;w<7;w++) html += `<th>${weekDays[w]}</th>`;
+        html += '</tr><tr>';
+        let localIndex = startIndex;
+        let day = 1;
+        for(let i=1;i<firstDay;i++) html += '<td></td>';
+        for(let i=firstDay;i<=7;i++) {
+            if(day > days) { html += '<td></td>'; continue; }
+            let person = names[localIndex];
+            let colorIdx = localIndex;
+            localIndex = (localIndex + 1) % 4;
+            let dateStr = (month < 10 ? '0' : '') + month + '-' + (day < 10 ? '0' : '') + day;
+            let fullDate = `${year}-${month < 10 ? '0' : ''}${month}-${day < 10 ? '0' : ''}${day}`;
+            let isHoliday = holidays.includes(dateStr);
+            let weekIdx = i-1;
+            let isWeekend = (weekIdx === 5 || weekIdx === 6);
+            let cellStyle = '';
+            if(isHoliday) cellStyle = 'background:#e0f8e0;';
+            else if(isWeekend) cellStyle = 'background:#ffe0ef;';
+            if(customNames[fullDate]) person = customNames[fullDate];
+            html += `<td style='${cellStyle}'><div style='font-weight:bold;'>${day}日</div><div class='editable-name' data-date='${fullDate}' style='font-size:13px;color:${nameColors[colorIdx]};cursor:pointer;'>${person}</div></td>`;
+            day++;
+        }
+        html += '</tr>';
+        while(day <= days) {
+            html += '<tr>';
+            for(let i=1;i<=7;i++) {
+                if(day > days) { html += '<td></td>'; continue; }
+                let person = names[localIndex];
+                let colorIdx = localIndex;
+                localIndex = (localIndex + 1) % 4;
+                let dateStr = (month < 10 ? '0' : '') + month + '-' + (day < 10 ? '0' : '') + day;
+                let fullDate = `${year}-${month < 10 ? '0' : ''}${month}-${day < 10 ? '0' : ''}${day}`;
+                let isHoliday = holidays.includes(dateStr);
+                let weekIdx = i-1;
+                let isWeekend = (weekIdx === 5 || weekIdx === 6);
+                let cellStyle = '';
+                if(isHoliday) cellStyle = 'background:#e0f8e0;';
+                else if(isWeekend) cellStyle = 'background:#ffe0ef;';
+                if(customNames[fullDate]) person = customNames[fullDate];
+                html += `<td style='${cellStyle}'><div style='font-weight:bold;'>${day}日</div><div class='editable-name' data-date='${fullDate}' style='font-size:13px;color:${nameColors[colorIdx]};cursor:pointer;'>${person}</div></td>`;
+                day++;
+            }
+            html += '</tr>';
+        }
+        html += '</table></div>';
+        document.getElementById('schedule').innerHTML = html;
+        // 绑定编辑事件
+        document.querySelectorAll('.editable-name').forEach(function(el){
+            el.onclick = function(){
+                let date = this.getAttribute('data-date');
+                let oldName = this.textContent;
+                let input = document.createElement('input');
+                input.type = 'text';
+                input.value = oldName;
+                input.style.fontSize = '13px';
+                input.style.width = '70px';
+                input.onblur = input.onkeydown = function(e){
+                    if(e.type==='blur' || (e.type==='keydown' && e.key==='Enter')){
+                        customNames[date] = input.value;
+                        generateSchedule(parseInt(yearSelect.value), parseInt(monthSelect.value));
+                    }
+                };
+                this.replaceWith(input);
+                input.focus();
+                input.select();
+            };
+        });
+    }
+
+    yearSelect.addEventListener('change', function() {
+        generateSchedule(parseInt(yearSelect.value), parseInt(monthSelect.value));
+    });
+    monthSelect.addEventListener('change', function() {
+        generateSchedule(parseInt(yearSelect.value), parseInt(monthSelect.value));
+    });
+
+    // 监听名字输入框变化
+    for(let i=0;i<4;i++){
+        document.getElementById('name'+i).addEventListener('input',function(){
+            names[i] = this.value;
+            generateSchedule(parseInt(yearSelect.value), parseInt(monthSelect.value));
+        });
+    }
+
+    // 初始化
+    generateSchedule(nowYear, new Date().getMonth() + 1);
+</script>
+</body>
+</html>
